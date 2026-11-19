@@ -2,7 +2,7 @@
 
 `@event-observability/vue` reports Vue errors to a Sentry-compatible collector using the official
 Sentry SDK. The core requires Vue 3.5.42 or later within 3.x, Sentry Vue SDK
-10.75.3 or later within 10.x, and Node 18+. Native Fetch, Axios, VueUse, Rollup, and
+10.75.3 or later within 10.x, and Node 18+. Native Fetch, Axios, VueUse, OpenReplay, Rollup, and
 Vite have separate entry points. Import the integrations your application uses.
 
 ## Installation
@@ -12,7 +12,7 @@ in the Vue application. JavaScript applications can import it directly. TypeScri
 applications use the declarations included in the same package.
 
 ```sh
-npm install /path/to/event-observability-vue-0.2.1.tgz @sentry/vue@^10.75.3
+npm install /path/to/event-observability-vue-0.3.0.tgz @sentry/vue@^10.75.3
 ```
 
 For shared releases, publish the tarball to a private npm registry. Keep the
@@ -65,6 +65,228 @@ The optional Axios adapter supports Axios 1.20+ within 1.x. Add each client once
 `validateStatus` accepts a 5xx response, the adapter records it and preserves the
 resolved response.
 
+## Delivery during network outages
+
+The default error transport writes the sanitized Sentry envelope to IndexedDB
+before its first delivery attempt. It also supports localStorage in the page.
+A successful HTTP response from the configured Sentry or GlitchTip collector
+acknowledges the event. An interrupted response can cause another submission
+with the same event ID. Changing the application or DSN selects a different queue.
+A supplied `transport` continues to own its delivery and retention.
+
+Network failures, HTTP 408, 425, 429 and server errors are retried with backoff.
+The transport respects collector rate-limit headers. Permanent rejections and
+records failing the checksum stay in storage for inspection. After fixing a
+collector or authorization problem, call `await observer.retryDelivery()`.
+`await observer.deliveryStatus()` reports `pending` and `blocked` counts, or
+`null` for a custom or inactive transport. `memoryOnly` counts errors held
+in the current page when durable storage failed. `unavailable` signals that
+a storage backend could not be checked. Set `onDeliveryError(error)` on the
+observer to surface storage and collector problems locally.
+
+The foreground client retries on startup and reconnection. The service worker
+below can also deliver saved errors when the browser grants Background Sync.
+A foreground visit resumes delivery on browsers that suspend background work.
+Disk quotas, private browsing, clearing site data and device failure affect
+retention. The SDK may also have an event or a frame in memory when the OS kills
+the process. HTTP acceptance confirms ingestion at the receiver. Availability
+in the receiver's dashboard depends on its own processing and retention.
+
+On a user gesture, the application can request persistent storage and display
+the browser's decision and estimated quota.
+
+```js
+import { requestPersistentStorage } from '@event-observability/vue/storage'
+
+const { persistent, usage, quota } = await requestPersistentStorage()
+```
+
+### Other collectors and critical application events
+
+The same persistent outbox is available for a custom protocol. Give each
+application, environment and destination its own stable queue name. Use a fresh
+ID per event and reuse it on retries. Pass JSON data that is safe to retain on
+the device. The following receiver explicitly acknowledges durable ingestion
+with HTTP 200 and deduplicates by event ID.
+
+```js
+import { DurableOutbox } from '@event-observability/vue/outbox'
+
+const queue = new DurableOutbox('orders:prod:audit-v1', async (event, id) => {
+  const response = await fetch('/telemetry/audit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, event }), redirect: 'error',
+  })
+  if (response.status === 200) return { state: 'ack' }
+  if ([408, 425, 429].includes(response.status) || response.status >= 500) return { state: 'retry' }
+  return { state: 'blocked', reason: 'HTTP ' + response.status }
+})
+queue.start() // Each time the application opens
+await queue.put(eventId, { code: 'order.saved' })
+```
+
+`put()` completes after a local write. If every durable store fails, it rejects,
+so the application can keep a critical operation open. A network exception
+retains the queued item for another attempt. `status()`, `retryBlocked()` and
+`stop()` expose the same delivery lifecycle to the application.
+
+## Optional OpenReplay
+
+Install the tested tracker in applications using replay.
+
+```sh
+npm install @openreplay/tracker@19.1.2
+```
+
+Recording is disabled by default. The replay plugin runs independently of the
+error observer and its Sentry DSN. Set `enabled` to the boolean `true`, install
+the plugin, and call `start()` after the user's recording choice. The tracker
+loads at that point. Do Not Track and Global Privacy Control disable recording.
+`stop()` ends capture, including an in-progress start. Vue unmount calls it
+automatically. Previously authorized and persisted packets can finish delivery.
+
+```js
+import { createOpenReplay } from '@event-observability/vue/openreplay'
+
+const replay = createOpenReplay({
+  enabled: import.meta.env.VITE_REPLAY_ENABLED === 'true',
+  projectKey: import.meta.env.VITE_REPLAY_PROJECT_KEY,
+})
+app.use(replay)
+
+// In the handler that grants recording permission
+const recordingStarted = await replay.start()
+// In the handler that withdraws it
+replay.stop()
+```
+
+`start()` returns `false` if permission, browser features, configuration or
+the selected gateway are unavailable. By default it requires the local service
+worker at `/__observability/openreplay`. Use `gatewayPath` if the worker uses
+a different path. One tracker owns a document. Reuse its controller when
+restarting. An explicitly supplied `ingestPoint` on the page selects direct,
+online-only recording to that HTTPS collector.
+
+### Visual fidelity and sensitive data
+
+Replay captures DOM changes, scrolling, pointer movement, styles, supported web
+animations and the viewport. Masking happens on the device. Apply
+`data-openreplay-unmask` to public UI whose text and images may be recorded. Mark
+private regions with `data-openreplay-hidden` on the surrounding element from
+the first render. Input values, select controls and editable fields stay private
+inside public sections. Public canvas/WebGL surfaces need the unmask attribute
+on the canvas itself. Their pixel data cannot be inspected for confidential
+content. The OpenReplay server controls canvas availability, quality and FPS.
+For a self-hosted installation enable canvas and select the server's high quality
+setting. [OpenReplay canvas configuration](https://docs.openreplay.com/en/session-replay/canvas/)
+
+```html
+<header data-openreplay-unmask>Order status</header>
+<canvas data-openreplay-unmask id="public-chart"></canvas>
+<section data-openreplay-hidden><!-- Account or payment details --></section>
+```
+
+Keep secrets out of CSS, asset URLs, and element IDs. Use public asset paths and
+a public `<base href>` if the application serves assets under a subdirectory.
+The privacy profile omits page locations from batch headers, console logs,
+network bodies and cross-origin frame capture. Use `Referrer-Policy: no-referrer`
+on the host page so browser-managed requests also omit its address. The tracker
+uses a blob worker. Allow the configured collector in `connect-src` and the
+site's own workers plus `blob:` in `worker-src`.
+
+### Installing durable replay delivery
+
+Serve the worker over HTTPS (loopback HTTP is supported for development).
+Copy `dist/openreplay-worker.global.js` from the installed package to a
+versioned public path. The following is a classic service worker at
+`/observability-sw.js`. If the site already owns a service worker, add these
+handlers to it. The module equivalent is `@event-observability/vue/openreplay-worker`.
+
+```js
+importScripts('/vendor/observability-0.3.0/openreplay-worker.global.js')
+
+EventObservabilityWorker.installOpenReplayGateway({
+  projectKey: 'YOUR_PUBLIC_OPENREPLAY_PROJECT_KEY',
+  ingestPoint: 'https://replay.example.org/ingest',
+})
+EventObservabilityWorker.installEventDeliveryWorker({
+  application: 'my-app-frontend',
+  dsn: 'https://PUBLIC_KEY@errors.example.org/1',
+})
+```
+
+The application and worker must use the same project key. For background error
+delivery, use the same application name and DSN as the Vue observer. Register
+the worker during application setup and allow it to control the page before
+the first recording attempt.
+
+```js
+if ('serviceWorker' in navigator) {
+  await navigator.serviceWorker.register('/observability-sw.js')
+  await navigator.serviceWorker.ready
+  if (!navigator.serviceWorker.controller) {
+    await new Promise(resolve =>
+      navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }))
+  }
+}
+```
+
+To reopen the application during a device-wide outage, precache its public
+app shell and versioned build files on an earlier connected visit. Include the
+lazy OpenReplay chunk. An existing PWA's precache can do this. Alternatively,
+the same worker includes the following helper. Populate it from the deployment's
+actual build manifest. Serve every listed resource with `Cache-Control: public`.
+The optional navigation fallback serves a static public shell for exact paths.
+
+```js
+EventObservabilityWorker.installOfflineAssets({
+  version: 'release-42',
+  assets: ['/assets/app.abc123.js', '/assets/replay.def456.js', '/assets/app.abc123.css'],
+  navigationFallback: { shell: '/offline.abc123.html', paths: ['/app'] },
+})
+```
+
+The client requests a flush every second and on page hide or stop. The browser
+can still suspend it before a flush finishes. The gateway saves SDK batches
+and canvas uploads locally before acknowledging them to the tracker.
+It forwards the original data to the configured project,
+checks delivery integrity and keeps enough acknowledged history to restore a
+session if its token expires while packets are pending. An ambiguous ACK or a
+restored session can appear twice upstream. When the first recording starts
+offline, the gateway can store DOM changes immediately after provisioning.
+Canvas frames use capabilities previously confirmed by that project's server.
+Inspect `await replay.deliveryStatus()` and call `await replay.retryDelivery()`
+after correcting a permanent rejection. The SDK and collector versions matter
+for this protocol. The tracker peer is pinned and tested against actual binary
+batches, input masking and session recovery.
+
+### Older devices
+
+The full Vue integration needs the APIs of Vue 3, its Sentry SDK and the
+OpenReplay tracker. Durable replay also needs a controlling service worker,
+Cache Storage, IndexedDB, Web Crypto and a previously provisioned application.
+Where those APIs are unavailable, the package includes a standalone ES5 error
+reporter. Serve `dist/legacy/observer.js` as a classic script and initialize it
+on the application's legacy entry point. It uses XMLHttpRequest and can retain
+basic error type, timestamp and stable ID in localStorage across page loads.
+
+```html
+<script src="/vendor/observability-0.3.0/legacy/observer.js"></script>
+<script>
+  var errors = EventObservability.install({
+    application: 'my-app-legacy',
+    dsn: 'https://PUBLIC_KEY@errors.example.org/1'
+  })
+</script>
+```
+
+Use a separate collector origin and configure CORS and the page's referrer policy.
+The legacy API provides `errors.reportError(error)`, `reportLog(message, level)`, `status()`, `flush()`,
+`retryBlocked()` and `stop()`. Its basic error reporting works independently of
+Vue, session replay and service workers. Devices that cannot negotiate the
+collector's TLS configuration need a supported local application or HTTPS
+gateway to deliver data.
+
 ## Native Fetch
 
 Use the wrapper anywhere you call Fetch. It returns the original response,
@@ -107,7 +329,15 @@ export const useApi = createObservedFetch({
 ```js
 observer.recordAction('record.save', 'attempt')
 observer.reportError(new Error('Unexpected failure'))
+const eventId = observer.reportLog('Offline order saved', 'info')
 ```
+
+Use `reportLog()` for important messages that should reach GlitchTip or Sentry
+even if no exception occurs. It returns a correlation ID for the event, or
+`null` when the observer is inactive. The default text policy retains the level
+and replaces the message with a placeholder. Choose `redact` or `full` for
+deployments that need message text. The ES5 reporter always uses a placeholder.
+Breadcrumbs from `recordAction()` accompany the next captured event.
 
 Use static labels in actions and `data-observer-action`. Click breadcrumbs use
 that attribute or the element type. Navigation breadcrumbs use router templates.
@@ -118,7 +348,7 @@ The event transport sends allowlisted error events and drops attachments.
 Structured request fields exclude HTTP payloads, headers, cookies, query strings,
 and fragments. Vue state and props are excluded. They include an `application` tag and, when
 available, the `request_id` from the HTTP response. The adapter ignores canceled
-requests and 4xx responses. Session tracking, replay, and tracing are disabled.
+requests and 4xx responses. The Sentry client disables session tracking, Sentry Replay and tracing.
 
 ## Privacy configuration
 
@@ -255,4 +485,6 @@ from source. The tarball includes the compiled modules and their types.
 The development lockfile records the dependency tree used by the tests and
 audit. Tests exercise the Sentry SDK with an in-memory transport, the Vite
 adapter configuration, and real Rollup builds with simulated CLI uploads.
-TypeScript checks usage of all seven public entry points in strict mode.
+TypeScript checks the public contracts in strict mode. Run `npm run test:browser`
+with Chromium available to verify the actual replay bytes and offline delivery
+after a reload. Set `CHROMIUM_PATH` to select the browser executable.

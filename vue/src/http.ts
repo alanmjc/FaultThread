@@ -1,5 +1,8 @@
 import type { HttpContext } from './policy.js'
 
+// Collector failures must not produce another error through a globally observed fetch.
+export const collectorRequest = Symbol('observability.collectorRequest')
+
 const methods = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'])
 
 export const asRecord = (value: unknown) =>

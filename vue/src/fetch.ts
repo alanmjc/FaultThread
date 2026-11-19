@@ -1,10 +1,11 @@
 import type { HttpObserver } from './policy.js'
-import { asRecord, notify, responseContext } from './http.js'
+import { asRecord, collectorRequest, notify, responseContext } from './http.js'
 
 type FetchResource = Partial<Pick<Request, 'url' | 'method' | 'signal'> & Pick<URL, 'href'>>
 
 /** Observe each exchange at the fetch boundary, before any shared reactive state changes. */
 export const observeFetch = (fetchImplementation: typeof fetch, observer: HttpObserver): typeof fetch => async (input, init) => {
+  if (init && collectorRequest in init) return fetchImplementation(input, init)
   const start = Date.now()
   const request: FetchResource | undefined = typeof input === 'string' ? undefined : input
   const url = typeof input === 'string' ? input : request?.url ?? request?.href

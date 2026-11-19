@@ -2,6 +2,10 @@ import { createApp, ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import axios from 'axios'
 import { createObserver, type PrivacyPolicy } from '@event-observability/vue'
+import { createOpenReplay } from '@event-observability/vue/openreplay'
+import { installEventDeliveryWorker, installOfflineAssets, installOpenReplayGateway } from '@event-observability/vue/openreplay-worker'
+import { requestPersistentStorage } from '@event-observability/vue/storage'
+import { DurableOutbox, type DeliveryResult } from '@event-observability/vue/outbox'
 import { observeFetch } from '@event-observability/vue/fetch'
 import { observeAxios } from '@event-observability/vue/axios'
 import { createObservedFetch } from '@event-observability/vue/vueuse'
@@ -31,4 +35,21 @@ void viteBuild
 const context: HttpContext = { status: 503, requestId: 'test-123' }
 if (isRequestId(context.requestId)) context.requestId.toLowerCase()
 observer.reportHttpFailure(new Error('test'), context)
+const logId: string | null = observer.reportLog('offline-save', 'warning')
+void logId
+void observer.deliveryStatus().then(status => status?.memoryOnly)
+void observer.retryDelivery()
 void observer.close()
+
+const replay = createOpenReplay({ enabled: true, projectKey: 'public-project-key', gatewayPath: '/__observability/openreplay' })
+app.use(replay)
+const started: Promise<boolean> = replay.start()
+void started
+replay.stop()
+void replay.deliveryStatus().then(status => status?.blocked)
+void requestPersistentStorage().then(storage => storage.persistent)
+const anotherCollector = new DurableOutbox<{ code: string }>('test:custom:v1', async (_payload, _id): Promise<DeliveryResult> => ({ state: 'ack' }))
+void anotherCollector.put('unique-event-id', { code: 'save' })
+installEventDeliveryWorker({ application: 'test', dsn: 'https://key@errors.example/1' })
+installOpenReplayGateway({ projectKey: 'public-project-key', ingestPoint: 'https://replay.example/ingest' })
+installOfflineAssets({ version: 'v1', assets: ['/main.js'], navigationFallback: { shell: '/index.html', paths: ['/app'] } })

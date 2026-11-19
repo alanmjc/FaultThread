@@ -2,8 +2,10 @@ import * as Sentry from '@sentry/vue'
 import type { BrowserOptions, ErrorEvent } from '@sentry/vue'
 import { watch, type App, type Plugin } from 'vue'
 import { asRecord, httpMethod, responseRequestId } from './http.js'
-import { errorTransport } from './transport.js'
-import { usesSecureTransport } from './collector-url.js'
+import { errorTransport, type TransportFactory } from './transport.js'
+import { EventDelivery } from './event-delivery.js'
+import type { DeliveryStatus } from './outbox.js'
+import { publicDsn } from './collector-url.js'
 import {
   isReportableHttpFailure, isRequestId, sanitizeUrl, sanitizeBreadcrumb,
   type HttpContext, type HttpObserver, type PrivacyPolicy,
@@ -18,6 +20,7 @@ export interface ObserverOptions {
   release?: string
   privacy?: PrivacyPolicy
   transport?: BrowserOptions['transport']
+  onDeliveryError?: (error: Error) => void
 }
 
 interface MatchedRoute {
@@ -42,19 +45,14 @@ export interface Observer extends HttpObserver {
   close(): Promise<boolean>
 }
 
+export interface ObserverClient extends Observer {
+  reportLog(message: string, level?: 'info' | 'warning' | 'error' | 'fatal'): string | null
+  deliveryStatus(): Promise<DeliveryStatus | null>
+  retryDelivery(): Promise<void>
+}
+
 // The SDK global handlers have one active client per browser realm.
 let activeObserver: Observer | undefined
-
-const publicDsn = (value: string) => {
-  let url
-  try { url = new URL(value) } catch { throw new TypeError('Observability: invalid DSN') }
-  // Match the SDK's host syntax before it can print an unparseable DSN.
-  const validHost = /^[\w.-]+$/.test(url.hostname) || /^\[[\da-f:]+\]$/i.test(url.hostname)
-  if (!validHost || !usesSecureTransport(url) || !/^\w+$/.test(url.username) ||
-      url.password || url.search || url.hash || !/^\/(?:[^/]+\/)*\d+$/.test(url.pathname))
-    throw new TypeError('Observability: invalid DSN')
-  return url.href
-}
 
 const reportableFailure = (error: Record<string, unknown> | undefined, context?: HttpContext) => {
   const response = asRecord(error?.response)
@@ -111,17 +109,28 @@ const observeAppLifecycle = (app: App, originalHandler: App['config']['errorHand
   }
 }
 
-export const createObserver = (options: ObserverOptions): Observer & Plugin<[ObserverInstallOptions?]> => {
+export const createObserver = (options: ObserverOptions): ObserverClient & Plugin<[ObserverInstallOptions?]> => {
   if (!options?.application?.trim()) throw new TypeError('Observability: application is required')
   const privacy = { ...options.privacy }
   let client: ReturnType<typeof Sentry.init>
+  let delivery: EventDelivery | undefined
+  let deliveryDsn: string | undefined
   let installedApp: App | undefined
   let closing: Promise<boolean> | undefined
   let contexts = new WeakMap<object, HttpContext>()
   const cleanups: Array<() => void> = []
   const logFailure = () => console.error('Observability: internal failure')
 
-  const observer: Observer = {
+  const reportDeliveryError = (error: Error) => {
+    try {
+      if (options.onDeliveryError) options.onDeliveryError(error)
+      else console.error(error.message)
+    } catch { logFailure() }
+  }
+
+  const observer: ObserverClient = {
+    async deliveryStatus() { return delivery ? delivery.status() : null },
+    async retryDelivery() { await delivery?.retryBlocked() },
     get active() { return !!client && !closing },
     recordAction(action, outcome = 'attempt') {
       if (observer.active) Sentry.addBreadcrumb({
@@ -161,6 +170,9 @@ export const createObserver = (options: ObserverOptions): Observer & Plugin<[Obs
     reportError(error) {
       if (observer.active) Sentry.captureException(error)
     },
+    reportLog(message, level = 'info') {
+      return observer.active ? Sentry.captureMessage(message, level) : null
+    },
     async close() {
       if (closing) return closing
       if (!client) return true
@@ -173,6 +185,7 @@ export const createObserver = (options: ObserverOptions): Observer & Plugin<[Obs
           scope.clear()
           scope.setClient(undefined)
         }
+        delivery?.stop()
         client = undefined
         installedApp = undefined
         activeObserver = undefined
@@ -199,12 +212,20 @@ export const createObserver = (options: ObserverOptions): Observer & Plugin<[Obs
         const originalHandler = app.config.errorHandler
         Sentry.getIsolationScope().clear()
         Sentry.getCurrentScope().clear()
+        const transport: TransportFactory = options.transport ?? (settings => {
+          if (!delivery || deliveryDsn !== dsn) {
+            delivery = new EventDelivery(options.application, dsn, settings.url, reportDeliveryError)
+            deliveryDsn = dsn
+          }
+          delivery.start()
+          return delivery
+        })
         client = Sentry.init({
           app,
           dsn,
           environment: options.environment,
           release: options.release,
-          transport: errorTransport(options.transport ?? Sentry.makeFetchTransport, options.application, privacy),
+          transport: errorTransport(transport, options.application, privacy),
           transportOptions: { fetchOptions: { credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error' } },
           sendDefaultPii: false,
           enableLogs: false,
@@ -246,6 +267,7 @@ export const createObserver = (options: ObserverOptions): Observer & Plugin<[Obs
       } catch (error) {
         if (client) void observer.close().catch(logFailure)
         else {
+          delivery?.stop()
           installedApp = undefined
           activeObserver = undefined
         }

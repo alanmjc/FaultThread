@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "module": "none",
+    "lib": ["ES5", "DOM"],
+    "types": [],
+    "strict": true,
+    "noEmitOnError": true,
+    "declaration": true,
+    "rootDir": "legacy",
+    "outDir": "dist/legacy"
+  },
+  "include": ["legacy/observer.ts"]
+}

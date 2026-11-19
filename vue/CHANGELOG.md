@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Adds opt-in OpenReplay, on-device masking and high-fidelity DOM and public canvas capture.
+- Persists sanitized errors, explicit application logs and replay batches during outages, with acknowledgement-based retries, integrity checks and controls for rejected uploads.
+- Adds service worker delivery, an optional versioned public-asset precache and a standalone ES5 error reporter for older browsers.
+- Exposes the durable outbox for custom collectors and application events requiring confirmation of a local write.
+
 ## 0.2.1
 
 - Builds the JavaScript modules and type declarations from a single TypeScript implementation. JavaScript and TypeScript applications keep their existing imports.

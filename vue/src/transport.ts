@@ -1,7 +1,7 @@
 import type { BrowserOptions, ErrorEvent } from '@sentry/vue'
 import { sanitizeEvent, type PrivacyPolicy } from './policy.js'
 
-type TransportFactory = NonNullable<BrowserOptions['transport']>
+export type TransportFactory = NonNullable<BrowserOptions['transport']>
 type ErrorItem = [{ type: 'event' }, ErrorEvent]
 
 // Sentry appends scope attachments after beforeSend. Apply the policy to the final envelope.

@@ -1,55 +1,120 @@
 {
   "name": "@event-observability/vue",
-  "version": "0.2.1",
-  "description": "Vue error monitoring with configurable data capture and optional HTTP adapters.",
+  "version": "0.3.0",
+  "description": "Vue error monitoring, offline delivery, and optional private OpenReplay session recording.",
   "license": "UNLICENSED",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "exports": {
-    ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
-    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
-    "./fetch": {"types": "./dist/fetch.d.ts", "import": "./dist/fetch.js"},
-    "./axios": {"types": "./dist/axios.d.ts", "import": "./dist/axios.js"},
-    "./vueuse": {"types": "./dist/vueuse.d.ts", "import": "./dist/vueuse.js"},
-    "./rollup": {"types": "./dist/rollup.d.ts", "import": "./dist/rollup.js"},
-    "./vite": {"types": "./dist/vite.d.ts", "import": "./dist/vite.js"}
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./openreplay": {
+      "types": "./dist/openreplay.d.ts",
+      "import": "./dist/openreplay.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch.d.ts",
+      "import": "./dist/fetch.js"
+    },
+    "./axios": {
+      "types": "./dist/axios.d.ts",
+      "import": "./dist/axios.js"
+    },
+    "./vueuse": {
+      "types": "./dist/vueuse.d.ts",
+      "import": "./dist/vueuse.js"
+    },
+    "./rollup": {
+      "types": "./dist/rollup.d.ts",
+      "import": "./dist/rollup.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./openreplay-worker": {
+      "types": "./dist/openreplay-worker.d.ts",
+      "import": "./dist/openreplay-worker.js"
+    },
+    "./openreplay-worker.global.js": "./dist/openreplay-worker.global.js",
+    "./legacy/observer.js": "./dist/legacy/observer.js",
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js"
+    },
+    "./outbox": {
+      "types": "./dist/outbox.d.ts",
+      "import": "./dist/outbox.js"
+    }
   },
-  "engines": {"node": ">=18"},
+  "engines": {
+    "node": ">=18"
+  },
   "peerDependencies": {
+    "@openreplay/tracker": "19.1.2",
+    "@sentry/cli": "^2.58.6",
     "@sentry/vue": ">=10.75.3 <11",
-    "vue": "^3.5.42",
-    "vue-router": "^4.3.0 || ^5.5.1",
-    "axios": "^1.20.0",
     "@vueuse/core": ">=10.9.0 <16",
+    "axios": "^1.20.0",
     "rollup": "^4.68.5",
     "vite": "^6.4.6 || ^7.3.8 || ^8.3.8",
-    "@sentry/cli": "^2.58.6"
+    "vue": "^3.5.42",
+    "vue-router": "^4.3.0 || ^5.5.1"
   },
   "peerDependenciesMeta": {
-    "vue-router": {"optional": true},
-    "axios": {"optional": true},
-    "@vueuse/core": {"optional": true},
-    "rollup": {"optional": true},
-    "vite": {"optional": true},
-    "@sentry/cli": {"optional": true}
+    "@openreplay/tracker": {
+      "optional": true
+    },
+    "vue-router": {
+      "optional": true
+    },
+    "axios": {
+      "optional": true
+    },
+    "@vueuse/core": {
+      "optional": true
+    },
+    "rollup": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    },
+    "@sentry/cli": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@sentry/vue": "10.75.3",
-    "vue": "^3.5.42",
-    "vue-router": "4.3.3",
-    "axios": "^1.20.0",
-    "@vueuse/core": "10.9.0",
-    "rollup": "^4.68.5",
+    "@openreplay/tracker": "19.1.2",
     "@sentry/cli": "2.58.6",
+    "@sentry/vue": "10.75.3",
+    "@types/node": "^22.0.0",
+    "@vueuse/core": "10.9.0",
+    "acorn": "8.19.0",
+    "axios": "^1.20.0",
+    "fake-indexeddb": "6.2.8",
+    "rollup": "^4.68.5",
     "typescript": "^5.6.0",
-    "vite": "6.4.6"
+    "vite": "6.4.6",
+    "vue": "^3.5.42",
+    "vue-router": "4.3.3"
   },
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json && tsc -p tsconfig.legacy.json && rollup dist/openreplay-worker.js --format iife --name EventObservabilityWorker --file dist/openreplay-worker.global.js --silent",
     "prepack": "npm run build",
     "test": "npm run typecheck && node --test",
-    "typecheck": "npm run build && tsc -p tests/tsconfig.json"
+    "typecheck": "npm run build && tsc -p tests/tsconfig.json",
+    "test:browser": "npm run build && node tests/browser/openreplay.mjs && node tests/browser/delivery.mjs"
   }
 }
