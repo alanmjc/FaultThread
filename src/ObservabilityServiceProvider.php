@@ -7,7 +7,9 @@ namespace EventObservability\Laravel;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use Sentry\ClientBuilder;
 use Sentry\Dsn;
+use Sentry\Transport\HttpTransport;
 use TypeError;
 
 final class ObservabilityServiceProvider extends ServiceProvider
@@ -47,6 +49,18 @@ final class ObservabilityServiceProvider extends ServiceProvider
             'sentry.tracing.queue_job_transactions' => false,
             'sentry.tracing.queue_jobs' => false,
         ]);
+
+        $this->app->resolving(ClientBuilder::class, static function (ClientBuilder $builder): void {
+            $options = $builder->getOptions();
+            $transport = $builder->getTransport();
+            if ($options->getDsn() && $options->getTransport() === null && get_class($transport) === HttpTransport::class) {
+                $builder->setTransport(new DurableEventTransport(
+                    $options, $builder->getHttpClient(),
+                    config('observability.outbox_path') ?: storage_path('app/private/event-observability'),
+                    (string) config('observability.application'), $transport,
+                ));
+            }
+        });
     }
 
     private function collectorDsn(): ?string
@@ -106,7 +120,7 @@ final class ObservabilityServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([DiagnoseCommand::class]);
+            $this->commands([DiagnoseCommand::class, OutboxCommand::class]);
         }
     }
 }

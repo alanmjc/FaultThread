@@ -37,6 +37,20 @@ final class InMemoryTransport implements TransportInterface
     }
 }
 
+final class OutboxTestCollector implements Sentry\HttpClient\HttpClientInterface
+{
+    public array $bodies = [];
+    public array $headers = [];
+    public int $status = 200;
+
+    public function sendRequest(Sentry\HttpClient\Request $request, Sentry\Options $options): Sentry\HttpClient\Response
+    {
+        $this->bodies[] = $request->getStringBody();
+
+        return new Sentry\HttpClient\Response($this->status, $this->headers, '');
+    }
+}
+
 final class NestedSyncJob
 {
     public function fire(Illuminate\Queue\Jobs\SyncJob $job, array $data): void
@@ -417,6 +431,109 @@ PHP);
         self::assertSame([], $event->getRequest());
         self::assertNull($event->getTransaction());
         self::assertArrayNotHasKey('request_id', $event->getTags());
+    }
+
+    private function useOutbox(OutboxTestCollector $collector): EventObservability\Laravel\DurableEventTransport
+    {
+        config(['sentry.transport' => null, 'sentry.http_client' => $collector]);
+        $this->app->forgetInstance(HubInterface::class);
+        $this->app->make(HubInterface::class);
+        $transport = $this->app->make(Sentry\ClientBuilder::class)->getTransport();
+        self::assertInstanceOf(EventObservability\Laravel\DurableEventTransport::class, $transport);
+
+        return $transport;
+    }
+
+    public function test_durable_http_events_survive_reopening_and_drain_on_an_ordinary_request(): void
+    {
+        $http = new OutboxTestCollector;
+        $http->status = 429;
+        $http->headers = ['Retry-After' => ['60']];
+        $transport = $this->useOutbox($http);
+        $this->get('/failure/42?token=private-fixture', 'offline-42');
+        self::assertSame(['pending' => 1, 'blocked' => 0], $transport->status());
+        self::assertCount(1, $http->bodies);
+        $file = glob(config('observability.outbox_path').'/*/pending/*.json')[0];
+        $directory = dirname($file, 2);
+        $snapshot = json_decode(file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(0600, fileperms($file) & 0777);
+        self::assertSame(0700, fileperms(dirname($file)) & 0777);
+        self::assertSame(hash('sha256', $http->bodies[0]), $snapshot['sha256']);
+        self::assertStringNotContainsString('private-fixture', $snapshot['body']);
+        $event = json_decode(explode("\n", $snapshot['body'])[2], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('offline-42', $event['tags']['request_id']);
+        $header = json_decode(explode("\n", $snapshot['body'])[0], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame($header['event_id'].'.json', basename($file));
+        self::assertGreaterThanOrEqual(time() + 58, (int) file_get_contents($directory.'/retry-at'));
+
+        $this->useOutbox($http);
+        $this->get('/ok');
+        self::assertCount(1, $http->bodies);
+        $http->status = 202;
+        $http->headers = [];
+        file_put_contents($directory.'/retry-at', '0');
+        $lock = fopen($directory.'/.drain.lock', 'c+b');
+        flock($lock, LOCK_EX);
+        try {
+            $this->get('/ok');
+            self::assertCount(1, $http->bodies);
+        } finally {
+            fclose($lock);
+        }
+        config(['sentry.dsn' => 'https://public@observer.invalid/999']);
+        $this->get('/ok');
+        self::assertCount(1, $http->bodies);
+        config(['sentry.dsn' => 'https://public@observer.invalid/2']);
+        $this->get('/ok');
+        self::assertSame([$snapshot['body'], $snapshot['body']], $http->bodies);
+        self::assertFileDoesNotExist($file);
+    }
+
+    public function test_diagnostic_requires_its_own_ack_and_artisan_can_retry_rejected_envelopes(): void
+    {
+        $http = new OutboxTestCollector;
+        $http->status = 403;
+        $transport = $this->useOutbox($http);
+        self::assertSame(1, Artisan::call('observability:diagnose', ['--send' => true]));
+        self::assertSame(['pending' => 0, 'blocked' => 1], $transport->status());
+        self::assertSame(1, Artisan::call('observability:outbox'));
+        self::assertStringContainsString('1 blocked', Artisan::output());
+        $http->status = 200;
+        self::assertSame(0, Artisan::call('observability:diagnose', ['--send' => true]));
+        self::assertSame(0, Artisan::call('observability:outbox', ['--retry-blocked' => true]));
+        self::assertCount(3, $http->bodies);
+        self::assertSame($http->bodies[0], $http->bodies[2]);
+        self::assertSame(['pending' => 0, 'blocked' => 0], $transport->status());
+    }
+
+    public function test_explicit_sdk_check_ins_use_the_existing_protocol(): void
+    {
+        $http = new OutboxTestCollector;
+        $transport = $this->useOutbox($http);
+        $id = Sentry\captureCheckIn('nightly-maintenance', Sentry\CheckInStatus::ok());
+        self::assertNotNull($id);
+        self::assertCount(1, $http->bodies);
+        self::assertStringContainsString('"type":"check_in"', $http->bodies[0]);
+        self::assertSame(['pending' => 0, 'blocked' => 0], $transport->status());
+    }
+
+    public function test_corrupt_outbox_records_stay_on_disk_without_being_posted(): void
+    {
+        $http = new OutboxTestCollector;
+        $http->status = 503;
+        $transport = $this->useOutbox($http);
+        $this->get('/failure/42');
+        $file = glob(config('observability.outbox_path').'/*/pending/*.json')[0];
+        file_put_contents(dirname($file, 2).'/retry-at', '0');
+        $data = json_decode(file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+        $data['body'] .= 'tampered';
+        file_put_contents($file, json_encode($data, JSON_THROW_ON_ERROR));
+        $http->status = 200;
+        $transport->drain();
+        self::assertCount(1, $http->bodies);
+        self::assertSame(['pending' => 0, 'blocked' => 1], $transport->status());
+        self::assertSame(1, Artisan::call('observability:outbox', ['--retry-blocked' => true]));
+        self::assertCount(1, $http->bodies);
     }
 
     private function get(string $path, ?string $id = null): Symfony\Component\HttpFoundation\Response

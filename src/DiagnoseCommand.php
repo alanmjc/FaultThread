@@ -47,7 +47,9 @@ final class DiagnoseCommand extends Command
                 ->setTags(['application' => (string) config('observability.application')]);
             $transport = $builder->getTransport();
             $delivery = $transport->send($event)->getStatus();
-            $flush = $transport->close(3)->getStatus();
+            // The disk transport confirms this specific ID synchronously. Other pending
+            // events do not invalidate a genuine acknowledgement of the diagnostic.
+            $flush = $transport instanceof DurableEventTransport ? $delivery : $transport->close(3)->getStatus();
             if ($delivery === ResultStatus::success() && $flush === ResultStatus::success()) {
                 $this->components->info('The configured transport accepted the diagnostic event. Event ID: '.$event->getId());
 

@@ -6,6 +6,7 @@ namespace EventObservability\Laravel;
 
 use Closure;
 use Illuminate\Http\Request;
+use Sentry\ClientBuilder;
 use Sentry\SentrySdk;
 use Sentry\Severity;
 use Sentry\State\Scope;
@@ -45,6 +46,21 @@ final class ObserveRequest
             $request->attributes->remove(self::ACTIVE);
             $request->attributes->remove(self::REPORTED);
             $hub->popScope();
+        }
+    }
+
+    public function terminate(): void
+    {
+        if (! config('sentry.dsn') || ! is_dir((string) config('observability.outbox_path'))) {
+            return;
+        }
+        try {
+            $transport = app(ClientBuilder::class)->getTransport();
+            if ($transport instanceof DurableEventTransport) {
+                $transport->drain();
+            }
+        } catch (Throwable $error) {
+            LocalDiagnostics::failure($error);
         }
     }
 

@@ -7,6 +7,7 @@ return [
     'dsn' => env('OBSERVER_DSN', env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN'))),
     'environment' => env('SENTRY_ENVIRONMENT', env('APP_ENV', 'production')),
     'release' => env('SENTRY_RELEASE'),
+    'outbox_path' => env('OBSERVABILITY_OUTBOX_PATH', storage_path('app/private/event-observability')),
     'http_connect_timeout' => (float) env('SENTRY_HTTP_CONNECT_TIMEOUT', 1),
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2),
     'max_breadcrumbs' => 100,

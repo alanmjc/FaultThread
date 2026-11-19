@@ -6,7 +6,9 @@ collector using the official SDK. It correlates requests and errors with
 
 Install the Laravel package for backend errors, the [Vue package](vue/README.md) for
 browser errors, or both to correlate a failure across the HTTP response. The
-browser package supports native Fetch, Axios, VueUse, and private sourcemaps with Rollup or Vite.
+browser package supports native Fetch, Axios, VueUse, optional OpenReplay session
+replay and private sourcemaps with Rollup or Vite. For offline storage on phones,
+tablets and desktops, see the [browser delivery and setup guide](vue/README.md#delivery-during-network-outages).
 
 ## Architecture
 
@@ -16,6 +18,9 @@ flowchart LR
         VUE["Vue application"]
         FRONTEND["Vue observer and Sentry SDK"]
         VUE -->|Vue and HTTP errors| FRONTEND
+        BROWSER_QUEUE["Local error outbox"]
+        FRONTEND --> BROWSER_QUEUE
+        VUE -->|Optional consented replay| REPLAY_QUEUE["OpenReplay service worker and local batches"]
     end
 
     subgraph BACKEND["Laravel application"]
@@ -28,8 +33,10 @@ flowchart LR
     end
 
     VUE <-->|HTTP and X-Request-Id| MIDDLEWARE
-    FRONTEND -->|Sanitized frontend events| COLLECTOR["Sentry-compatible event collector"]
-    SENTRY -->|Sanitized backend events| COLLECTOR
+    REPLAY_QUEUE -->|Replay batches and public canvas frames| OR["OpenReplay collector"]
+    BROWSER_QUEUE -->|Sanitized frontend events| COLLECTOR["Sentry-compatible event collector"]
+    SENTRY -->|Sanitized envelopes| DISK["Private Laravel outbox"]
+    DISK -->|HTTPS delivery| COLLECTOR
 ```
 
 The response carries `X-Request-Id`. When a browser adapter can read it, related
@@ -57,19 +64,23 @@ composer config repositories.observability-local path /absolute/path/to/observab
 composer require event-observability/laravel:dev-main
 ```
 
-For the downloadable ZIP, extract it to a stable directory and use that
-directory as the local Composer path above. This also works on shared hosting.
-Laravel sends HTTP error reports during the request. The package requires no
-queue worker, jobs table, Redis, or cron. Its queue listener runs when the
-host application processes a job.
+For the release ZIP, place it in a directory dedicated to Composer artifacts.
+Composer reads the release version directly from the ZIP.
 
-For installations from a private Composer registry that hosts version 0.2.0,
-set `COMPOSER_REGISTRY_URL` to the registry endpoint and run these commands
-from the Laravel application directory.
+```sh
+composer config repositories.observability-archives artifact /absolute/path/to/archives
+composer require event-observability/laravel:^0.3.0
+```
+
+A shared host can run the package without a queue worker, jobs table, Redis, or
+cron. Its optional queue listener runs only when the application processes a job.
+The web process needs a writable private directory for delivery during outages.
+
+For a private Composer registry hosting version 0.3.0, use its endpoint instead.
 
 ```sh
 composer config repositories.observability-packages composer "$COMPOSER_REGISTRY_URL"
-composer require event-observability/laravel:^0.2.0
+composer require event-observability/laravel:^0.3.0
 ```
 
 Serve versioned release archives from stable registry URLs so existing
@@ -125,9 +136,42 @@ php artisan observability:diagnose
 
 The diagnostic command checks configuration without printing credentials or
 sending an event. Run `php artisan observability:diagnose --send` to send a fixed
-synthetic event through the configured transport. It exits successfully when
-the transport accepts the event and flushes successfully, and prints the event ID
-for lookup in the collector. A rejected send produces a nonzero exit code.
+synthetic event through the configured transport. With the default transport,
+success requires an HTTP 2xx acknowledgement for that specific event ID. A
+retained event can still reach the collector after the command reports failure.
+
+### Server delivery during outages
+
+Laravel writes each sanitized error envelope to
+`storage/app/private/event-observability` before the first HTTP attempt. Set
+`OBSERVABILITY_OUTBOX_PATH` to an absolute path on persistent private storage
+to override this location. Keep it outside the document root and across releases.
+The filesystem must support file locking, hard links, atomic rename and syncing of
+files and directories. For multiple application instances, use a persistent
+volume per instance or a shared filesystem that provides these operations.
+
+Records are isolated by application name and collector DSN. A later request
+retries one eligible envelope during termination. A quiet site resumes on its
+next request. Timeouts, HTTP 408, 425, 429 and 5xx responses back off, including
+collector rate limits. Confirmed 2xx delivery removes the record. An interruption
+between acceptance and deletion can resend the same event ID.
+
+To process a backlog immediately or retry after fixing a collector rejection, run:
+
+```sh
+php artisan observability:outbox
+php artisan observability:outbox --limit=100 --retry-blocked
+```
+
+The command attempts up to 25 envelopes by default (`--limit` accepts 1–100).
+It prints pending and blocked counts and exits nonzero while either has records.
+Permanent HTTP rejections remain blocked until explicitly retried. Files that
+fail their checksum or envelope identity checks are retained with a `.corrupt`
+suffix in the private `blocked` directory for inspection. They require recovery
+from a trusted copy. Monitor storage space during extended outages. If the
+server cannot persist a new error, the package logs a local diagnostic and tries
+immediate HTTP delivery. Simultaneous disk and network failure can lose that
+event. Applications using a custom `sentry.transport` manage their own delivery.
 
 ### Privacy settings by deployment
 
@@ -189,7 +233,8 @@ flowchart TD
     CAPTURE --> RETURN
     HANDLE -->|Laravel reports an exception| FILTER["Sanitize the event and tag it with request_id"]
     CAPTURE --> FILTER
-    FILTER -->|DSN configured| COLLECTOR["Sentry SDK sends the event to the configured collector"]
+    FILTER -->|DSN configured| DISK["Persist the sanitized error envelope"]
+    DISK --> COLLECTOR["Send the envelope and remove it after HTTP 2xx"]
 ```
 
 - The global middleware reuses a request ID of 1–64 alphanumeric or hyphen
@@ -233,7 +278,8 @@ composer audit
 The library resolves dependencies for the current PHP version. To test
 Laravel 13 explicitly on PHP 8.3 or later, run
 `composer update --with 'laravel/framework:^13.40'` in a separate working copy.
-The test suite boots a minimal Laravel application with an in-memory transport.
+The test suite boots a minimal Laravel application. It exercises custom transports,
+private disk retention, collector responses and delivery on a later request.
 
 To run the suite against an existing Laravel installation that already includes
 the Sentry SDK dependencies, set `OBSERVER_TEST_AUTOLOAD` to its autoloader.
@@ -244,6 +290,8 @@ OBSERVER_TEST_AUTOLOAD=/path/to/app/vendor/autoload.php \
 ```
 
 Composer distribution archives exclude development files and the Vue package.
+For a release distributed via an artifact repository, set the release manifest's
+`version` field to the published version in the staging directory before archiving.
 Consuming applications manage their own dependency locks.
 
 ```sh
