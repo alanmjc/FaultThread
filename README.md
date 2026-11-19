@@ -1,10 +1,10 @@
-# Laravel Observability
+# FaultThread for Laravel
 
-`event-observability/laravel` reports Laravel errors to a Sentry-compatible
+`faultthread/laravel` reports Laravel errors to a Sentry-compatible
 collector using the official SDK. It correlates requests and errors with
 `X-Request-Id` and limits the event data sent to the collector.
 
-Install the Laravel package for backend errors, the [Vue package](vue/README.md) for
+Install the Laravel package for backend errors, the [FaultThread Vue package](vue/README.md) for
 browser errors, or both to correlate a failure across the HTTP response. The
 browser package supports native Fetch, Axios, VueUse, optional OpenReplay session
 replay and private sourcemaps with Rollup or Vite. For offline storage on phones,
@@ -60,31 +60,50 @@ and require the development branch. Composer links the checkout when the
 filesystem supports symlinks.
 
 ```sh
-composer config repositories.observability-local path /absolute/path/to/observabilidad
-composer require event-observability/laravel:dev-main
+composer config repositories.faultthread-local path /absolute/path/to/observabilidad
+composer require faultthread/laravel:dev-main
 ```
 
 For the release ZIP, place it in a directory dedicated to Composer artifacts.
 Composer reads the release version directly from the ZIP.
 
 ```sh
-composer config repositories.observability-archives artifact /absolute/path/to/archives
-composer require event-observability/laravel:^0.3.0
+composer config repositories.faultthread-archives artifact /absolute/path/to/archives
+composer require faultthread/laravel:^0.4.0
 ```
 
 A shared host can run the package without a queue worker, jobs table, Redis, or
 cron. Its optional queue listener runs only when the application processes a job.
 The web process needs a writable private directory for delivery during outages.
 
-For a private Composer registry hosting version 0.3.0, use its endpoint instead.
+Once version 0.4.0 is available on Packagist, install it with
+`composer require faultthread/laravel:^0.4.0`. For a private Composer registry
+hosting this version, configure its endpoint first.
 
 ```sh
-composer config repositories.observability-packages composer "$COMPOSER_REGISTRY_URL"
-composer require event-observability/laravel:^0.3.0
+composer config repositories.faultthread-packages composer "$COMPOSER_REGISTRY_URL"
+composer require faultthread/laravel:^0.4.0
 ```
 
 Serve versioned release archives from stable registry URLs so existing
 installations can still resolve and download them if the source code moves.
+
+### Upgrading from 0.3.x
+
+In the application's `composer.json`, replace the `event-observability/laravel`
+requirement with `"faultthread/laravel": "^0.4.0"`. Configure the source of
+the new package, then update both entries in the same dependency resolution.
+
+```sh
+composer update event-observability/laravel faultthread/laravel --with-dependencies
+```
+
+Keep the existing application identifier, DSN and private storage directory so
+FaultThread can deliver events saved before the upgrade. The `observability:*`
+commands, environment variables and published configuration keep their existing names.
+Use the `FaultThread\Laravel` namespace for new PHP code.
+
+### Application setup
 
 Laravel discovers the service provider and registers the request middleware automatically.
 Register Sentry's exception handler once in the application's `bootstrap/app.php`.

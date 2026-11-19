@@ -22,10 +22,10 @@ export function createOpenReplayGateway({ projectKey, ingestPoint, path = defaul
   if (!projectKey || !path.startsWith('/') || path.startsWith('//') || base.origin !== location.origin ||
       base.search || base.hash || base.pathname === '/' || !usesSecureTransport(destination) ||
       destination.username || destination.password || destination.search || destination.hash)
-    throw new TypeError('Observability: invalid OpenReplay gateway configuration')
+    throw new TypeError('FaultThread: invalid OpenReplay gateway configuration')
   const local = base.href.replace(/\/+$/, '')
   const remote = destination.href.replace(/\/+$/, '')
-  if (local === remote) throw new TypeError('Observability: recursive OpenReplay gateway')
+  if (local === remote) throw new TypeError('FaultThread: recursive OpenReplay gateway')
   const stream = JSON.stringify(['openreplay', local, remote, projectKey])
   const sessions = new ReplaySessions(local, remote, stream + ':sessions')
   const queue = new DurableOutbox<ReplayPacket>(stream, (packet, key) => sessions.deliver(packet, key))

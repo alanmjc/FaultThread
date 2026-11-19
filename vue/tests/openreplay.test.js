@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import Tracker from '@openreplay/tracker/class'
-import { createOpenReplay } from '@event-observability/vue/openreplay'
+import { createOpenReplay } from '@faultthread/vue/openreplay'
 import { localReplayEndpoint, replayDelivery, wakeReplayGateway } from '../dist/replay-gateway-client.js'
 
 const enabled = { enabled: true, projectKey: 'test-project' }

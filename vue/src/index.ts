@@ -110,7 +110,7 @@ const observeAppLifecycle = (app: App, originalHandler: App['config']['errorHand
 }
 
 export const createObserver = (options: ObserverOptions): ObserverClient & Plugin<[ObserverInstallOptions?]> => {
-  if (!options?.application?.trim()) throw new TypeError('Observability: application is required')
+  if (!options?.application?.trim()) throw new TypeError('FaultThread: application is required')
   const privacy = { ...options.privacy }
   let client: ReturnType<typeof Sentry.init>
   let delivery: EventDelivery | undefined
@@ -119,7 +119,7 @@ export const createObserver = (options: ObserverOptions): ObserverClient & Plugi
   let closing: Promise<boolean> | undefined
   let contexts = new WeakMap<object, HttpContext>()
   const cleanups: Array<() => void> = []
-  const logFailure = () => console.error('Observability: internal failure')
+  const logFailure = () => console.error('FaultThread: internal failure')
 
   const reportDeliveryError = (error: Error) => {
     try {
@@ -204,7 +204,7 @@ export const createObserver = (options: ObserverOptions): ObserverClient & Plugi
       if (installedApp === app) return
       const existing = Sentry.getClient()
       if (activeObserver || (existing?.getDsn() && existing.getOptions().enabled !== false))
-        throw new Error('Observability: close the active observer or Sentry client before installing another')
+        throw new Error('FaultThread: close the active observer or Sentry client before installing another')
       const dsn = publicDsn(options.dsn)
       activeObserver = observer
       installedApp = app

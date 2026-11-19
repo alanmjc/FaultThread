@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace EventObservability\Laravel;
+namespace FaultThread\Laravel;
 
 use FilesystemIterator;
 use JsonException;
@@ -160,7 +160,7 @@ final class DurableEventTransport implements TransportInterface
                     }
                 } catch (JsonException) {
                     $this->move($file, substr($blocked, 0, -5).'.corrupt');
-                    error_log('Observability: retained corrupted outbox record. Run observability:outbox');
+                    error_log('FaultThread: retained corrupted outbox record. Run observability:outbox');
                     if (++$processed >= $limit) break;
                     continue;
                 }
@@ -182,7 +182,7 @@ final class DurableEventTransport implements TransportInterface
                     $this->syncDirectory(dirname($file));
                 } elseif (! $retry) {
                     $this->move($file, $blocked);
-                    error_log('Observability: retained error after collector HTTP '.$code.'. Run observability:outbox');
+                    error_log('FaultThread: retained error after collector HTTP '.$code.'. Run observability:outbox');
                 }
                 if ($target !== null) return $ack;
                 if (++$processed >= $limit || $until > time()) break;

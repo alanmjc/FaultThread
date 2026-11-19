@@ -39,6 +39,6 @@ export const notify = (callback: () => void) => {
   try {
     callback()
   } catch {
-    console.error('Observability: HTTP adapter failure')
+    console.error('FaultThread: HTTP adapter failure')
   }
 }

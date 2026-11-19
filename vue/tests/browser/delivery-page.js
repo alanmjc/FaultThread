@@ -1,6 +1,6 @@
 import { createApp, h } from 'vue'
-import { createObserver } from '@event-observability/vue'
-import { createOpenReplay } from '@event-observability/vue/openreplay'
+import { createObserver } from '@faultthread/vue'
+import { createOpenReplay } from '@faultthread/vue/openreplay'
 
 const check = async (stage, details = {}) => (await fetch('/check', {
   method: 'POST', body: JSON.stringify({ stage, ...details }),

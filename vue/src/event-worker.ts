@@ -7,7 +7,7 @@ type Extendable = Event & { waitUntil(work: Promise<unknown>): void }
 
 // Supply the same trusted configuration as the page. No destination comes from a queued event.
 export function installEventDeliveryWorker({ application, dsn }: { application: string; dsn: string }): void {
-  if (!application.trim()) throw new TypeError('Observability: application is required')
+  if (!application.trim()) throw new TypeError('FaultThread: application is required')
   const canonical = publicDsn(dsn)
   const url = new URL(canonical)
   const key = url.username
@@ -23,7 +23,7 @@ export function installEventDeliveryWorker({ application, dsn }: { application: 
   globalThis.addEventListener('sync', event => {
     if ((event as Event & { tag: string }).tag === eventSyncTag)
       (event as Extendable).waitUntil(drain().then(empty => {
-        if (!empty) throw new Error('Observability: error delivery is still pending')
+        if (!empty) throw new Error('FaultThread: error delivery is still pending')
       }))
   })
   globalThis.addEventListener('message', event => {

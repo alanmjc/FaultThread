@@ -1,6 +1,6 @@
-# Vue Observability
+# FaultThread for Vue
 
-`@event-observability/vue` reports Vue errors to a Sentry-compatible collector using the official
+`@faultthread/vue` reports Vue errors to a Sentry-compatible collector using the official
 Sentry SDK. The core requires Vue 3.5.42 or later within 3.x, Sentry Vue SDK
 10.75.3 or later within 10.x, and Node 18+. Native Fetch, Axios, VueUse, OpenReplay, Rollup, and
 Vite have separate entry points. Import the integrations your application uses.
@@ -12,17 +12,26 @@ in the Vue application. JavaScript applications can import it directly. TypeScri
 applications use the declarations included in the same package.
 
 ```sh
-npm install /path/to/event-observability-vue-0.3.0.tgz @sentry/vue@^10.75.3
+npm install /path/to/faultthread-vue-0.4.0.tgz @sentry/vue@^10.75.3
 ```
 
 For shared releases, publish the tarball to a private npm registry. Keep the
 resolved dependency in the application's lockfile.
 
+### Upgrading from 0.3.x
+
+Replace the dependency and import prefix `@event-observability/vue` with
+`@faultthread/vue`, including imports in your service worker and build configuration.
+Keep the application's existing origin, application name, DSN, worker scope and
+replay gateway settings so FaultThread can resume delivery of pending records.
+The classic page and worker scripts also expose their previous
+`EventObservability` and `EventObservabilityWorker` globals for existing callers.
+
 ## Shared observer
 
 ```js
 // observability.js
-import { createObserver } from '@event-observability/vue'
+import { createObserver } from '@faultthread/vue'
 
 export const observer = createObserver({
   application: 'my-app-frontend',
@@ -38,7 +47,7 @@ with those adapters (Vue Router 4.3+ or 5.5.1+ within their respective majors).
 
 ```js
 // Before app.mount(...)
-import { observeAxios } from '@event-observability/vue/axios'
+import { observeAxios } from '@faultthread/vue/axios'
 import { observer } from './observability.js'
 
 app.use(observer, {
@@ -96,7 +105,7 @@ On a user gesture, the application can request persistent storage and display
 the browser's decision and estimated quota.
 
 ```js
-import { requestPersistentStorage } from '@event-observability/vue/storage'
+import { requestPersistentStorage } from '@faultthread/vue/storage'
 
 const { persistent, usage, quota } = await requestPersistentStorage()
 ```
@@ -110,7 +119,7 @@ the device. The following receiver explicitly acknowledges durable ingestion
 with HTTP 200 and deduplicates by event ID.
 
 ```js
-import { DurableOutbox } from '@event-observability/vue/outbox'
+import { DurableOutbox } from '@faultthread/vue/outbox'
 
 const queue = new DurableOutbox('orders:prod:audit-v1', async (event, id) => {
   const response = await fetch('/telemetry/audit', {
@@ -146,7 +155,7 @@ loads at that point. Do Not Track and Global Privacy Control disable recording.
 automatically. Previously authorized and persisted packets can finish delivery.
 
 ```js
-import { createOpenReplay } from '@event-observability/vue/openreplay'
+import { createOpenReplay } from '@faultthread/vue/openreplay'
 
 const replay = createOpenReplay({
   enabled: import.meta.env.VITE_REPLAY_ENABLED === 'true',
@@ -200,16 +209,16 @@ Serve the worker over HTTPS (loopback HTTP is supported for development).
 Copy `dist/openreplay-worker.global.js` from the installed package to a
 versioned public path. The following is a classic service worker at
 `/observability-sw.js`. If the site already owns a service worker, add these
-handlers to it. The module equivalent is `@event-observability/vue/openreplay-worker`.
+handlers to it. The module equivalent is `@faultthread/vue/openreplay-worker`.
 
 ```js
-importScripts('/vendor/observability-0.3.0/openreplay-worker.global.js')
+importScripts('/vendor/faultthread-0.4.0/openreplay-worker.global.js')
 
-EventObservabilityWorker.installOpenReplayGateway({
+FaultThreadWorker.installOpenReplayGateway({
   projectKey: 'YOUR_PUBLIC_OPENREPLAY_PROJECT_KEY',
   ingestPoint: 'https://replay.example.org/ingest',
 })
-EventObservabilityWorker.installEventDeliveryWorker({
+FaultThreadWorker.installEventDeliveryWorker({
   application: 'my-app-frontend',
   dsn: 'https://PUBLIC_KEY@errors.example.org/1',
 })
@@ -239,7 +248,7 @@ actual build manifest. Serve every listed resource with `Cache-Control: public`.
 The optional navigation fallback serves a static public shell for exact paths.
 
 ```js
-EventObservabilityWorker.installOfflineAssets({
+FaultThreadWorker.installOfflineAssets({
   version: 'release-42',
   assets: ['/assets/app.abc123.js', '/assets/replay.def456.js', '/assets/app.abc123.css'],
   navigationFallback: { shell: '/offline.abc123.html', paths: ['/app'] },
@@ -271,9 +280,9 @@ on the application's legacy entry point. It uses XMLHttpRequest and can retain
 basic error type, timestamp and stable ID in localStorage across page loads.
 
 ```html
-<script src="/vendor/observability-0.3.0/legacy/observer.js"></script>
+<script src="/vendor/faultthread-0.4.0/legacy/observer.js"></script>
 <script>
-  var errors = EventObservability.install({
+  var errors = FaultThread.install({
     application: 'my-app-legacy',
     dsn: 'https://PUBLIC_KEY@errors.example.org/1'
   })
@@ -294,7 +303,7 @@ leaves the body available to the caller, and associates each HTTP failure with
 its own response's request ID.
 
 ```js
-import { observeFetch } from '@event-observability/vue/fetch'
+import { observeFetch } from '@faultthread/vue/fetch'
 import { observer } from './observability.js'
 
 const apiFetch = observeFetch(globalThis.fetch.bind(globalThis), observer)
@@ -310,7 +319,7 @@ With TypeScript 7, include `ESNext` and `DOM` in `lib` and `web-bluetooth` in
 an explicit `types` list.
 
 ```js
-import { createObservedFetch } from '@event-observability/vue/vueuse'
+import { createObservedFetch } from '@faultthread/vue/vueuse'
 import { observer } from './observability.js'
 
 export const useApi = createObservedFetch({
@@ -413,7 +422,7 @@ Set `base` to the public path of the output directory. It defaults to `/`.
 
 ```js
 // rollup.config.mjs
-import { observabilitySourcemaps } from '@event-observability/vue/rollup'
+import { observabilitySourcemaps } from '@faultthread/vue/rollup'
 
 export default {
   input: 'src/main.js',
@@ -445,7 +454,7 @@ returns the build and its maps in memory and skips the upload.
 
 ```js
 import { defineConfig, loadEnv } from 'vite'
-import { observabilitySourcemaps } from '@event-observability/vue/vite'
+import { observabilitySourcemaps } from '@faultthread/vue/vite'
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }

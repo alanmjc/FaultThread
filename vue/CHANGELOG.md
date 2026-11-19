@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Renames the npm package to `@faultthread/vue`. All module entry points use the new scope.
+- Adds the `FaultThread` classic page global and `FaultThreadWorker` service worker global. Existing classic integrations and queued events continue to work across the upgrade.
+
 ## 0.3.0
 
 - Adds opt-in OpenReplay, on-device masking and high-fidelity DOM and public canvas capture.

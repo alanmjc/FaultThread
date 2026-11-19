@@ -3,7 +3,7 @@ export type { DeliveryStatus } from './outbox-store.js'
 
 export type DeliveryResult = { state: 'ack' } | { state: 'retry'; afterMs?: number } | { state: 'blocked'; reason: string }
 const leaseMs = 120_000
-const storageError = () => new Error('Observability: durable storage unavailable or full')
+const storageError = () => new Error('FaultThread: durable storage unavailable or full')
 
 // The checksum covers precisely the serialized, sanitized payload that will be replayed.
 async function digest(body: string, algorithm = globalThis.crypto?.subtle ? 'sha256' : 'crc32'): Promise<string> {
@@ -11,7 +11,7 @@ async function digest(body: string, algorithm = globalThis.crypto?.subtle ? 'sha
     const bytes = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(body))
     return 'sha256:' + Array.from(new Uint8Array(bytes), x => x.toString(16).padStart(2, '0')).join('')
   }
-  if (algorithm !== 'crc32') throw new Error('Observability: unknown payload checksum')
+  if (algorithm !== 'crc32') throw new Error('FaultThread: unknown payload checksum')
   let crc = -1
   for (let i = 0; i < body.length; i++) {
     const code = body.charCodeAt(i)
@@ -51,7 +51,7 @@ export class DurableOutbox<T> {
 
   private async persist(key: string, payload: T): Promise<void> {
     const body = JSON.stringify(payload)
-    if (typeof body !== 'string' || !key) throw new TypeError('Observability: invalid queue record')
+    if (typeof body !== 'string' || !key) throw new TypeError('FaultThread: invalid queue record')
     const record: SavedRecord = {
       key, stream: this.stream, body, digest: await digest(body), attempts: 0, state: 'pending', created: Date.now(), next: 0,
     }
@@ -149,7 +149,7 @@ export class DurableOutbox<T> {
             this.nextCheck = Math.min(this.nextCheck, Date.now() + retryIn)
             break
           }
-          this.report(new Error('Observability: retained a record that could not be delivered (' + outcome.reason + ')'))
+          this.report(new Error('FaultThread: retained a record that could not be delivered (' + outcome.reason + ')'))
         }
       } catch { this.report(storageError()) }
     }

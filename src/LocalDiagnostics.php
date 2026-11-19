@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace EventObservability\Laravel;
+namespace FaultThread\Laravel;
 
 use Psr\Log\AbstractLogger;
 use Stringable;
@@ -19,13 +19,13 @@ final class LocalDiagnostics extends AbstractLogger
             return;
         }
         if (in_array($level, ['warning', 'error', 'critical', 'alert', 'emergency'], true)) {
-            error_log('Observability: SDK level '.$level.'. Run observability:diagnose');
+            error_log('FaultThread: SDK level '.$level.'. Run observability:diagnose');
         }
     }
 
     public static function failure(Throwable $exception): void
     {
         // Avoid the application's log channels: they may report back to Sentry.
-        error_log('Observability: internal failure of type '.get_class($exception));
+        error_log('FaultThread: internal failure of type '.get_class($exception));
     }
 }

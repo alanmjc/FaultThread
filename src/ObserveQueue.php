@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace EventObservability\Laravel;
+namespace FaultThread\Laravel;
 
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Queue\Job;

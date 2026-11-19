@@ -11,7 +11,7 @@ const animation = Messages.NodeAnimationResult(0, '')[0]
 // Its worker belongs to this tracker and survives stop/start. Guard that one instance only.
 function protectBatchLocation(worker: unknown): void {
   if (!worker || typeof worker !== 'object' || !('postMessage' in worker) || typeof worker.postMessage !== 'function')
-    throw new Error('Observability: OpenReplay privacy guard unavailable')
+    throw new Error('FaultThread: OpenReplay privacy guard unavailable')
 
   const postMessage = worker.postMessage
   worker.postMessage = (message: unknown, ...args: unknown[]) => {
@@ -24,7 +24,7 @@ function protectBatchLocation(worker: unknown): void {
 
 export function protectReplayData(tracker: Tracker): void {
   tracker.use(app => {
-    if (!app) throw new Error('Observability: OpenReplay tracker unavailable')
+    if (!app) throw new Error('FaultThread: OpenReplay tracker unavailable')
     protectBatchLocation(Reflect.get(app, 'worker'))
 
     // Filter before dictionary encoding. Discarding an encoded attribute would still send its value.

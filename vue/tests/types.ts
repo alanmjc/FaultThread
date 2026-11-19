@@ -1,21 +1,27 @@
 import { createApp, ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import axios from 'axios'
-import { createObserver, type PrivacyPolicy } from '@event-observability/vue'
-import { createOpenReplay } from '@event-observability/vue/openreplay'
-import { installEventDeliveryWorker, installOfflineAssets, installOpenReplayGateway } from '@event-observability/vue/openreplay-worker'
-import { requestPersistentStorage } from '@event-observability/vue/storage'
-import { DurableOutbox, type DeliveryResult } from '@event-observability/vue/outbox'
-import { observeFetch } from '@event-observability/vue/fetch'
-import { observeAxios } from '@event-observability/vue/axios'
-import { createObservedFetch } from '@event-observability/vue/vueuse'
-import { observabilitySourcemaps } from '@event-observability/vue/rollup'
-import { observabilitySourcemaps as viteSourcemaps } from '@event-observability/vue/vite'
-import { isRequestId, type HttpContext } from '@event-observability/vue/policy'
+import { createObserver, type PrivacyPolicy } from '@faultthread/vue'
+import { createOpenReplay } from '@faultthread/vue/openreplay'
+import '@faultthread/vue/legacy/observer.js'
+import '@faultthread/vue/openreplay-worker.global.js'
+import { installEventDeliveryWorker, installOfflineAssets, installOpenReplayGateway } from '@faultthread/vue/openreplay-worker'
+import { requestPersistentStorage } from '@faultthread/vue/storage'
+import { DurableOutbox, type DeliveryResult } from '@faultthread/vue/outbox'
+import { observeFetch } from '@faultthread/vue/fetch'
+import { observeAxios } from '@faultthread/vue/axios'
+import { createObservedFetch } from '@faultthread/vue/vueuse'
+import { observabilitySourcemaps } from '@faultthread/vue/rollup'
+import { observabilitySourcemaps as viteSourcemaps } from '@faultthread/vue/vite'
+import { isRequestId, type HttpContext } from '@faultthread/vue/policy'
 import type { RollupOptions } from 'rollup'
 import type { UserConfig } from 'vite'
 
 const privacy: PrivacyPolicy = { eventText: 'omit', urls: 'redact', captureUserId: true }
+const classicPage: typeof EventObservability = FaultThread
+const classicWorker: typeof installOpenReplayGateway = FaultThreadWorker.installOpenReplayGateway
+void classicPage
+void classicWorker
 const observer = createObserver({ application: 'test', dsn: '', privacy })
 const app = createApp({})
 app.use(observer, {

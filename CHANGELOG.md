@@ -1,4 +1,9 @@
-# Changelog
+# FaultThread for Laravel changelog
+
+## 0.4.0
+
+- Renames the Composer package to `faultthread/laravel` and its PHP namespace to `FaultThread\Laravel`.
+- Keeps the previous configuration, Artisan commands and private event queue usable during the upgrade.
 
 ## 0.3.0
 

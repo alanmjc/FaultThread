@@ -14,10 +14,17 @@ interface LegacyObserver {
   flush(): void
   stop(): void
 }
-declare var EventObservability: { install(options: LegacyObserverOptions): LegacyObserver }
+declare var FaultThread: { install(options: LegacyObserverOptions): LegacyObserver }
+/** @deprecated Use FaultThread. */
+declare var EventObservability: typeof FaultThread
 
 ;(function () {
-  if (typeof window === 'undefined' || window.EventObservability) return
+  if (typeof window === 'undefined') return
+  const existing = window.FaultThread || window.EventObservability
+  if (existing) {
+    window.FaultThread = window.EventObservability = existing
+    return
+  }
   let active: { scope: string; observer: LegacyObserver } | undefined
   const kinds = ['Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError']
   const levels: LegacyLogLevel[] = ['info', 'warning', 'error', 'fatal']
@@ -30,13 +37,13 @@ declare var EventObservability: { install(options: LegacyObserverOptions): Legac
   function collector(dsn: string): string {
     // Parse only the public-key DSN grammar. Old anchor implementations lack username/password APIs.
     const match = /^(https?):\/\/([a-z0-9_]+)@(\[[a-f\d:]+\]|[a-z\d.-]+)(:\d{1,5})?(\/(?:[\w.~%-]+\/)*)?(\d+)$/i.exec(dsn)
-    if (!match) throw new TypeError('Observability: invalid legacy DSN')
+    if (!match) throw new TypeError('FaultThread: invalid legacy DSN')
     const protocol = match[1].toLowerCase(), host = match[3].toLowerCase()
     if (protocol !== 'https' && host !== 'localhost' && host !== 'localhost.' && host !== '[::1]' &&
         !/^127(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(host))
-      throw new TypeError('Observability: HTTPS required for remote collectors')
+      throw new TypeError('FaultThread: HTTPS required for remote collectors')
     if (!match[5] || /\/(?:\.|%2e){1,2}\//i.test(match[5]) || (match[4] && Number(match[4].slice(1)) > 65535))
-      throw new TypeError('Observability: invalid legacy DSN')
+      throw new TypeError('FaultThread: invalid legacy DSN')
     return protocol + '://' + host + (match[4] || '') + match[5] + 'api/' + match[6] +
       '/envelope/?sentry_version=7&sentry_key=' + match[2]
   }
@@ -65,12 +72,12 @@ declare var EventObservability: { install(options: LegacyObserverOptions): Legac
 
   function install(options: LegacyObserverOptions): LegacyObserver {
     if (!options || typeof options.application !== 'string' || !/^[a-z\d_.-]{1,150}$/i.test(options.application))
-      throw new TypeError('Observability: a legacy application identifier is required')
+      throw new TypeError('FaultThread: a legacy application identifier is required')
     const application = options.application, endpoint = collector(options.dsn)
     const scope = 'event-observability-legacy-v1:' + encodeURIComponent(application + '|' + endpoint) + ':'
     if (active) {
       if (active.scope === scope) return active.observer
-      throw new Error('Observability: stop the active legacy observer first')
+      throw new Error('FaultThread: stop the active legacy observer first')
     }
     const memory: { [key: string]: RecordData } = Object.create(null)
     let storage: Storage | undefined
@@ -78,7 +85,7 @@ declare var EventObservability: { install(options: LegacyObserverOptions): Legac
     let rateLimitedUntil = 0
     function report(message: string): void {
       try {
-        const error = new Error('Observability: ' + message)
+        const error = new Error('FaultThread: ' + message)
         if (options.onDeliveryError) options.onDeliveryError(error)
         else if (window.console && window.console.error) window.console.error(error.message)
       } catch { /* The host diagnostic callback cannot interrupt capture. */ }
@@ -262,5 +269,5 @@ declare var EventObservability: { install(options: LegacyObserverOptions): Legac
     return observer
   }
 
-  window.EventObservability = { install }
+  window.FaultThread = window.EventObservability = { install }
 })()

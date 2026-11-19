@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use EventObservability\Laravel\ObservabilityServiceProvider;
-use EventObservability\Laravel\EventSanitizer;
+use FaultThread\Laravel\ObservabilityServiceProvider;
+use FaultThread\Laravel\EventSanitizer;
 use Illuminate\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
@@ -90,7 +90,7 @@ final class ObservabilityTest extends TestCase
 <?php
 return Illuminate\Foundation\Application::configure(basePath: dirname(__DIR__))
             ->withProviders([
-                EventObservability\Laravel\ObservabilityServiceProvider::class,
+                FaultThread\Laravel\ObservabilityServiceProvider::class,
                 Sentry\Laravel\ServiceProvider::class,
                 Sentry\Laravel\Tracing\ServiceProvider::class,
             ], withBootstrapProviders: false)
@@ -137,6 +137,19 @@ PHP);
         }
         rmdir($this->base);
         parent::tearDown();
+    }
+
+    public function test_cached_legacy_names_resolve_to_the_discovered_provider_and_its_classes(): void
+    {
+        $metadata = json_decode(file_get_contents(__DIR__.'/../composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame([ObservabilityServiceProvider::class], $metadata['extra']['laravel']['providers']);
+        $provider = $this->app->getProvider(ObservabilityServiceProvider::class);
+        self::assertInstanceOf(ObservabilityServiceProvider::class, $provider);
+        $this->app->register(EventObservability\Laravel\ObservabilityServiceProvider::class);
+        self::assertSame($provider, $this->app->getProvider(ObservabilityServiceProvider::class));
+        self::assertCount(1, $this->app->getProviders(ObservabilityServiceProvider::class));
+        self::assertSame(EventSanitizer::class, (new ReflectionClass(EventObservability\Laravel\EventSanitizer::class))->getName());
+        self::assertSame(storage_path('app/private/event-observability'), config('observability.outbox_path'));
     }
 
     public function test_5xx_correlation_and_request_local_deduplication(): void
@@ -433,13 +446,13 @@ PHP);
         self::assertArrayNotHasKey('request_id', $event->getTags());
     }
 
-    private function useOutbox(OutboxTestCollector $collector): EventObservability\Laravel\DurableEventTransport
+    private function useOutbox(OutboxTestCollector $collector): FaultThread\Laravel\DurableEventTransport
     {
         config(['sentry.transport' => null, 'sentry.http_client' => $collector]);
         $this->app->forgetInstance(HubInterface::class);
         $this->app->make(HubInterface::class);
         $transport = $this->app->make(Sentry\ClientBuilder::class)->getTransport();
-        self::assertInstanceOf(EventObservability\Laravel\DurableEventTransport::class, $transport);
+        self::assertInstanceOf(FaultThread\Laravel\DurableEventTransport::class, $transport);
 
         return $transport;
     }

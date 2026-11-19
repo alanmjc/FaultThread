@@ -1,10 +1,13 @@
 {
-  "name": "@event-observability/vue",
-  "version": "0.3.0",
-  "description": "Vue error monitoring, offline delivery, and optional private OpenReplay session recording.",
+  "name": "@faultthread/vue",
+  "version": "0.4.0",
+  "description": "FaultThread for Vue: error monitoring, offline delivery, and optional private OpenReplay session recording.",
   "license": "UNLICENSED",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/legacy/observer.js",
+    "./dist/openreplay-worker.global.js"
+  ],
   "files": [
     "dist",
     "README.md",
@@ -47,7 +50,10 @@
       "types": "./dist/openreplay-worker.d.ts",
       "import": "./dist/openreplay-worker.js"
     },
-    "./openreplay-worker.global.js": "./dist/openreplay-worker.global.js",
+    "./openreplay-worker.global.js": {
+      "types": "./dist/classic-worker.d.ts",
+      "default": "./dist/openreplay-worker.global.js"
+    },
     "./legacy/observer.js": "./dist/legacy/observer.js",
     "./storage": {
       "types": "./dist/storage.d.ts",
@@ -111,7 +117,7 @@
     "vue-router": "4.3.3"
   },
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json && tsc -p tsconfig.legacy.json && rollup dist/openreplay-worker.js --format iife --name EventObservabilityWorker --file dist/openreplay-worker.global.js --silent",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json && tsc -p tsconfig.legacy.json && rollup dist/classic-worker.js --format iife --file dist/openreplay-worker.global.js --silent",
     "prepack": "npm run build",
     "test": "npm run typecheck && node --test",
     "typecheck": "npm run build && tsc -p tests/tsconfig.json",

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use EventObservability\Laravel\EventSanitizer;
-use EventObservability\Laravel\ObserveQueue;
-use EventObservability\Laravel\ObserveRequest;
+use FaultThread\Laravel\EventSanitizer;
+use FaultThread\Laravel\ObserveQueue;
+use FaultThread\Laravel\ObserveRequest;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Http\Request;

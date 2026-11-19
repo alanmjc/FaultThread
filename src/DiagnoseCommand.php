@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace EventObservability\Laravel;
+namespace FaultThread\Laravel;
 
 use Illuminate\Console\Command;
 use Sentry\ClientBuilder;
@@ -14,7 +14,7 @@ final class DiagnoseCommand extends Command
 {
     protected $signature = 'observability:diagnose {--send : Send a synthetic event without real data}';
 
-    protected $description = 'Check observability configuration without revealing secrets';
+    protected $description = 'Check FaultThread configuration without revealing secrets';
 
     public function handle(ClientBuilder $builder): int
     {
@@ -41,7 +41,7 @@ final class DiagnoseCommand extends Command
         try {
             // captureMessage can return an event ID even when the HTTP transport rejects it.
             $event = Event::createEvent()
-                ->setMessage('Observability: manually requested synthetic event')
+                ->setMessage('FaultThread: manually requested synthetic event')
                 ->setEnvironment($options->getEnvironment())
                 ->setRelease($options->getRelease())
                 ->setTags(['application' => (string) config('observability.application')]);

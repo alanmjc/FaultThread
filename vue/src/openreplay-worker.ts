@@ -36,7 +36,7 @@ export function installOpenReplayGateway(options: GatewayOptions): void {
   host.addEventListener('sync', event => {
     if ((event as Event & { tag: string }).tag === syncTag)
       (event as PendingEvent).waitUntil(drain().then(empty => {
-        if (!empty) throw new Error('Observability: replay delivery is still pending')
+        if (!empty) throw new Error('FaultThread: replay delivery is still pending')
       }))
   })
   host.addEventListener('message', event => {

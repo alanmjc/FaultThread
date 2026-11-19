@@ -9,11 +9,11 @@ export const usesSecureTransport = (url: URL): boolean => {
 
 export const publicDsn = (value: string) => {
   let url
-  try { url = new URL(value) } catch { throw new TypeError('Observability: invalid DSN') }
+  try { url = new URL(value) } catch { throw new TypeError('FaultThread: invalid DSN') }
   // Match the SDK's host syntax before it can print an unparseable DSN.
   const validHost = /^[\w.-]+$/.test(url.hostname) || /^\[[\da-f:]+\]$/i.test(url.hostname)
   if (!validHost || !usesSecureTransport(url) || !/^\w+$/.test(url.username) ||
       url.password || url.search || url.hash || !/^\/(?:[^/]+\/)*\d+$/.test(url.pathname))
-    throw new TypeError('Observability: invalid DSN')
+    throw new TypeError('FaultThread: invalid DSN')
   return url.href
 }

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createApp } from 'vue'
 import * as Sentry from '@sentry/vue'
-import { createObserver } from '@event-observability/vue'
-import { observeFetch } from '@event-observability/vue/fetch'
+import { createObserver } from '@faultthread/vue'
+import { observeFetch } from '@faultthread/vue/fetch'
 import { EventDelivery } from '../dist/event-delivery.js'
 
 function fixture(t) {

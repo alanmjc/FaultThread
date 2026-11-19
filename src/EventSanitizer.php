@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace EventObservability\Laravel;
+namespace FaultThread\Laravel;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;

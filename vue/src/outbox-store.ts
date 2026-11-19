@@ -32,7 +32,7 @@ function database(): Promise<IDBDatabase> {
         store.createIndex('state', ['stream', 'state'])
       }
       request.onerror = () => reject(request.error)
-      request.onblocked = () => reject(new Error('Observability: database upgrade is blocked'))
+      request.onblocked = () => reject(new Error('FaultThread: database upgrade is blocked'))
       request.onsuccess = () => {
         const db = request.result
         db.onversionchange = () => { db.close(); opening = undefined }
@@ -52,7 +52,7 @@ async function transaction<T>(mode: IDBTransactionMode, execute: (store: IDBObje
     catch { tx = db.transaction(table, mode) }
     let value: T
     tx.oncomplete = () => resolve(value)
-    tx.onabort = tx.onerror = () => reject(tx.error ?? new Error('Observability: database transaction failed'))
+    tx.onabort = tx.onerror = () => reject(tx.error ?? new Error('FaultThread: database transaction failed'))
     execute(tx.objectStore(table), result => { value = result })
   })
 }
@@ -126,7 +126,7 @@ export class LocalStore {
     const key = this.name(record.key)
     const existing = this.storage.getItem(key)
     if (existing === null) this.storage.setItem(key, JSON.stringify(record))
-    else if (!this.decode(key, existing)) throw new Error('Observability: local record is damaged')
+    else if (!this.decode(key, existing)) throw new Error('FaultThread: local record is damaged')
   }
   private *records(): IterableIterator<SavedRecord | undefined> {
     for (let i = 0; i < this.storage.length; i++) {

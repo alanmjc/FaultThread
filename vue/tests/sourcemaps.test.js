@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import SentryCli from '@sentry/cli'
 import { rollup } from 'rollup'
 import { waitForReleaseFiles } from '../dist/release-files.js'
-import { observabilitySourcemaps } from '@event-observability/vue/rollup'
-import { observabilitySourcemaps as viteSourcemaps } from '@event-observability/vue/vite'
+import { observabilitySourcemaps } from '@faultthread/vue/rollup'
+import { observabilitySourcemaps as viteSourcemaps } from '@faultthread/vue/vite'
 
 const options = {
   enabled: true, release: 'example@sha', url: 'https://observer.invalid',
@@ -132,5 +132,5 @@ test('unprocessed maps block publication and verification errors omit response d
   t.mock.method(globalThis, 'fetch', async () => new Response('[]'))
   await assert.rejects(waitForReleaseFiles(endpoint, options, expected, 1), /did not confirm/)
   globalThis.fetch.mock.mockImplementation(async () => new Response(options.authToken))
-  await assert.rejects(waitForReleaseFiles(endpoint, options, expected, 1), { message: 'Observability: collector returned an invalid release file list' })
+  await assert.rejects(waitForReleaseFiles(endpoint, options, expected, 1), { message: 'FaultThread: collector returned an invalid release file list' })
 })

@@ -18,7 +18,7 @@ const writeArtifact = async (
   expected?: Map<string, string>,
 ): Promise<void> => {
   if (posix.isAbsolute(name) || win32.isAbsolute(name) || name.split(/[\\/]/).includes('..'))
-    throw new Error('Observability: invalid build artifact path')
+    throw new Error('FaultThread: invalid build artifact path')
 
   const path = join(directory, name)
   await mkdir(dirname(path), { recursive: true })
@@ -28,7 +28,7 @@ const writeArtifact = async (
     const filename = posix.basename(name)
     const sha1 = createHash('sha1').update(contents).digest('hex')
     if (expected.has(filename) && expected.get(filename) !== sha1)
-      throw new Error('Observability: GlitchTip release files need unique asset basenames. Include a hash in the output names.')
+      throw new Error('FaultThread: GlitchTip release files need unique asset basenames. Include a hash in the output names.')
     expected.set(filename, sha1)
   }
 }
@@ -38,19 +38,19 @@ export function observabilitySourcemaps(options: RollupSourcemapOptions): Plugin
   validateUploadOptions(options)
   const collector = options.collector ?? 'sentry'
   if (collector !== 'sentry' && collector !== 'glitchtip')
-    throw new Error('Observability: collector must be sentry or glitchtip')
+    throw new Error('FaultThread: collector must be sentry or glitchtip')
   const timeout = options.processingTimeoutSeconds ?? 60
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > 3600)
-    throw new Error('Observability: processingTimeoutSeconds must be an integer between 1 and 3600')
+    throw new Error('FaultThread: processingTimeoutSeconds must be an integer between 1 and 3600')
 
   let endpoint: URL
   try {
     endpoint = new URL(options.url)
   } catch {
-    throw new Error('Observability: invalid collector URL')
+    throw new Error('FaultThread: invalid collector URL')
   }
   if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !usesSecureTransport(endpoint))
-    throw new Error('Observability: use an HTTPS collector URL (HTTP is supported on loopback)')
+    throw new Error('FaultThread: use an HTTPS collector URL (HTTP is supported on loopback)')
 
   return {
     name: 'observability-rollup-sourcemaps',
@@ -75,7 +75,7 @@ export function observabilitySourcemaps(options: RollupSourcemapOptions): Plugin
             delete bundle[mapName]
             maps++
           }
-          if (!maps) throw new Error('Observability: the build did not generate sourcemaps')
+          if (!maps) throw new Error('FaultThread: the build did not generate sourcemaps')
 
           const { default: SentryCli } = await import('@sentry/cli')
           const cli = new SentryCli(null, {

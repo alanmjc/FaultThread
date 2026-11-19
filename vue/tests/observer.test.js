@@ -3,11 +3,11 @@ import { test } from 'node:test'
 import { createApp, ref } from 'vue'
 import axios, { AxiosError } from 'axios'
 import * as Sentry from '@sentry/vue'
-import { createObserver } from '@event-observability/vue'
-import { observeAxios } from '@event-observability/vue/axios'
-import { observeFetch } from '@event-observability/vue/fetch'
-import { createObservedFetch } from '@event-observability/vue/vueuse'
-import { sanitizeUrl, sanitizeMessage, sanitizeEvent, isReportableHttpFailure, isRequestId } from '@event-observability/vue/policy'
+import { createObserver } from '@faultthread/vue'
+import { observeAxios } from '@faultthread/vue/axios'
+import { observeFetch } from '@faultthread/vue/fetch'
+import { createObservedFetch } from '@faultthread/vue/vueuse'
+import { sanitizeUrl, sanitizeMessage, sanitizeEvent, isReportableHttpFailure, isRequestId } from '@faultthread/vue/policy'
 
 const memoryTransport = () => {
   const events = []
@@ -143,7 +143,7 @@ test('disabled observer is inert; invalid DSN and concurrent clients fail explic
   assert.throws(() => createApp({}).use(createObserver({ application: 'invalid', dsn: 'https://observer.invalid/no-project' })), /invalid DSN/)
   for (const dsn of ['invalid DSN', 'https://public:private@observer.invalid/1', 'https://public@observer.invalid/1?private',
     'http://public@observer.invalid/1', 'http://public@127.0.0.1.example.invalid/1', 'https://public@bad!host/private/1']) {
-    assert.throws(() => createApp({}).use(createObserver({ application: 'invalid', dsn })), { message: 'Observability: invalid DSN' })
+    assert.throws(() => createApp({}).use(createObserver({ application: 'invalid', dsn })), { message: 'FaultThread: invalid DSN' })
   }
   for (const host of ['localhost', 'localhost.', '127.0.0.42', '[::1]']) {
     const local = createObserver({ application: 'local', dsn: `http://public@${host}/1`, ...memoryTransport() })

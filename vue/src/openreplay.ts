@@ -31,7 +31,7 @@ function browserAllowsReplay(): boolean {
 function ingestEndpoint(value: string): string {
   const url = new URL(value)
   if (!usesSecureTransport(url) || url.username || url.password || url.search || url.hash)
-    throw new TypeError('Observability: invalid OpenReplay endpoint')
+    throw new TypeError('FaultThread: invalid OpenReplay endpoint')
   return url.href.replace(/\/+$/, '')
 }
 
@@ -48,7 +48,7 @@ export function createOpenReplay({
   let previous = Promise.resolve(false)
 
   const stopTracker = (instance = tracker) => {
-    try { instance?.stop() } catch { console.error('Observability: OpenReplay could not stop cleanly') }
+    try { instance?.stop() } catch { console.error('FaultThread: OpenReplay could not stop cleanly') }
   }
 
   const checkpoint = () => {

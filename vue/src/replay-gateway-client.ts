@@ -5,16 +5,16 @@ const channel = 'event-observability:openreplay'
 
 export async function localReplayEndpoint(path: string, projectKey: string): Promise<string> {
   if (!path.startsWith('/') || path.startsWith('//') || !activeServiceWorker())
-    throw new Error('Observability: a controlling replay service worker is required')
+    throw new Error('FaultThread: a controlling replay service worker is required')
   const url = new URL(path, location.origin)
   if (url.origin !== location.origin || url.search || url.hash || url.pathname === '/')
-    throw new Error('Observability: invalid replay gateway path')
+    throw new Error('FaultThread: invalid replay gateway path')
   const endpoint = url.href.replace(/\/+$/, '')
   const response = await fetch(endpoint + '/ready', { cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' })
   if (!response.ok || response.headers.get('X-Observability-OpenReplay') !== '1')
-    throw new Error('Observability: replay gateway unavailable')
+    throw new Error('FaultThread: replay gateway unavailable')
   const info = await response.json()
-  if (info.protocol !== 1 || info.projectKey !== projectKey) throw new Error('Observability: replay gateway project mismatch')
+  if (info.protocol !== 1 || info.projectKey !== projectKey) throw new Error('FaultThread: replay gateway project mismatch')
   return endpoint
 }
 

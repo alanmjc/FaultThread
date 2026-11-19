@@ -36,7 +36,7 @@ function browser(data, clock, result, previousHandler) {
     Uint8Array: undefined, fetch: undefined, indexedDB: undefined, URL: undefined,
   }
   vm.runInNewContext(script, context)
-  return { window, requests, errors, install: () => window.EventObservability.install({
+  return { window, requests, errors, install: () => window.FaultThread.install({
     dsn, application: 'legacy-app', onDeliveryError: error => errors.push(error.message),
   }) }
 }
@@ -45,9 +45,10 @@ test('the standalone classic artifact parses as ES5 and remains inert before ins
   parse(script, { ecmaVersion: 5, sourceType: 'script' })
   const previousHandler = () => true
   const app = browser(new Map(), { now: Date.now() }, { status: 200 }, previousHandler)
+  assert.equal(app.window.FaultThread, app.window.EventObservability)
   assert.equal(app.window.onerror, previousHandler)
   for (const dsn of ['http://public@remote.example/1', 'https://public:secret@remote.example/1', 'https://public@remote.example/1?key=x']) {
-    assert.throws(() => app.window.EventObservability.install({ application: 'legacy-app', dsn }), /Observability/)
+    assert.throws(() => app.window.FaultThread.install({ application: 'legacy-app', dsn }), /FaultThread/)
   }
   assert.equal(app.requests.length, 0)
   const observer = app.install()
@@ -60,6 +61,24 @@ test('the standalone classic artifact parses as ES5 and remains inert before ins
   observer.stop()
   assert.equal(app.window.onerror, previousHandler)
   assert.equal(observer.reportError(new Error()), null)
+})
+
+test('a preloaded classic observer remains the single observer during an upgrade', () => {
+  const original = { install() {} }
+  const window = { EventObservability: original }
+  vm.runInNewContext(script, { window })
+  assert.equal(window.FaultThread, original)
+  assert.equal(window.EventObservability, original)
+})
+
+test('the classic worker exposes the same handlers under both public names', () => {
+  const source = readFileSync(new URL('../dist/openreplay-worker.global.js', import.meta.url), 'utf8')
+  const scope = {}
+  vm.runInNewContext(source, scope)
+  assert.equal(typeof scope.FaultThreadWorker.installOpenReplayGateway, 'function')
+  assert.equal(typeof scope.FaultThreadWorker.installEventDeliveryWorker, 'function')
+  assert.equal(typeof scope.FaultThreadWorker.installOfflineAssets, 'function')
+  assert.equal(scope.FaultThreadWorker, scope.EventObservabilityWorker)
 })
 
 test('classic errors survive a new page with their original ID and respect collector rate limits', () => {

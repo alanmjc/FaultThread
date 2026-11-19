@@ -1,5 +1,5 @@
 import { createApp, h } from 'vue'
-import { createOpenReplay } from '@event-observability/vue/openreplay'
+import { createOpenReplay } from '@faultthread/vue/openreplay'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 const checkpoint = async (stage, details = {}) => {

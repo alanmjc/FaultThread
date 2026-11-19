@@ -22,10 +22,10 @@ export const waitForReleaseFiles = async (
       do {
         const response = await fetch(files, { headers, signal: deadline, redirect: 'error' })
         if (!response.ok)
-          throw new Error(`Observability: release file verification returned HTTP ${response.status}`)
+          throw new Error(`FaultThread: release file verification returned HTTP ${response.status}`)
         const entries: unknown = await response.json().catch(() => null)
         if (!Array.isArray(entries))
-          throw new Error('Observability: collector returned an invalid release file list')
+          throw new Error('FaultThread: collector returned an invalid release file list')
         for (const { name, sha1 } of entries) {
           if (missing.get(name) === sha1) missing.delete(name)
         }
@@ -40,5 +40,5 @@ export const waitForReleaseFiles = async (
   } catch (error) {
     if (!deadline.aborted) throw error
   }
-  throw new Error(`Observability: collector did not confirm the uploaded release files within ${seconds}s`)
+  throw new Error(`FaultThread: collector did not confirm the uploaded release files within ${seconds}s`)
 }

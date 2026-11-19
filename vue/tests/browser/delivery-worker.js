@@ -1,4 +1,4 @@
-import { installEventDeliveryWorker, installOfflineAssets, installOpenReplayGateway } from '@event-observability/vue/openreplay-worker'
+import { installEventDeliveryWorker, installOfflineAssets, installOpenReplayGateway } from '@faultthread/vue/openreplay-worker'
 
 installOpenReplayGateway({ projectKey: 'local-fixture', ingestPoint: location.origin + '/ingest' })
 const dsn = new URL('/1', location.origin)

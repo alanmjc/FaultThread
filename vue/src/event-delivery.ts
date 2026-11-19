@@ -118,7 +118,7 @@ export class EventDelivery {
         if (result.state === 'ack') this.memory.delete(key)
         else if (result.state === 'blocked') {
           record.blocked = true
-          this.report(new Error('Observability: retained error in memory (' + result.reason + ')'))
+          this.report(new Error('FaultThread: retained error in memory (' + result.reason + ')'))
         } else record.next = Date.now() + Math.max(1000, result.afterMs ?? 0)
       }
       this.scheduleRecovery()

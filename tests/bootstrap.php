@@ -13,7 +13,7 @@ if (! $externalAutoload) {
 }
 
 spl_autoload_register(static function (string $class): void {
-    $prefix = 'EventObservability\\Laravel\\';
+    $prefix = 'FaultThread\\Laravel\\';
     if (str_starts_with($class, $prefix)) {
         $path = __DIR__.'/../src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
         if (is_file($path)) {
@@ -21,3 +21,5 @@ spl_autoload_register(static function (string $class): void {
         }
     }
 }, prepend: true);
+
+require_once __DIR__.'/../src/legacy-aliases.php';

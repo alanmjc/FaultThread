@@ -16,6 +16,6 @@ export function validateUploadOptions<T extends SourcemapOptions>(options: T): a
   for (const key of uploadFields) {
     const value = options[key]
     if (typeof value !== 'string' || !value.trim())
-      throw new Error(`Observability: ${key} is required to upload sourcemaps`)
+      throw new Error(`FaultThread: ${key} is required to upload sourcemaps`)
   }
 }
